@@ -36,15 +36,16 @@ const getOneNote = asyncHandler(async (req, res) => {
 // @route POST /notes
 // @access Private
 const createNewNote = asyncHandler(async (req, res) => {
-	const { userid, title, text } = req.body;
+	const { userid, username, title, text } = req.body;
 
 	// Confirm DATABASE_URI
-	if (!userid || !title || !text) {
-		return res.status(400).json({ message: 'All fields are required' });
+	if (!userid || !title || !text || !username) {
+		return res.status(400).json({ message: `All fields are required ${req.body}` });
 	}
 
 	const noteObject = {
 		title: title,
+		username: username,
 		text: text,
 		completed: false,
 		user: userid,
@@ -64,6 +65,7 @@ const createNewNote = asyncHandler(async (req, res) => {
 // @route PATCH /note/:id
 // @access Private
 const updateNote = asyncHandler(async (req, res) => {
+
 	const { id: _id } = req.params;
 
 	const note = req.body;
