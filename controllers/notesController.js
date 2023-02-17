@@ -1,24 +1,21 @@
 const mongoose = require('mongoose');
-const User = require('../models/User');
 const Note = require('../models/Note');
-const asyncHandler = require('express-async-handler');
-const bcrypt = require('bcrypt');
 
 // @desc Get all notes
 // @route GET /notes
 // @access Private
-const getAllNotes = asyncHandler(async (req, res) => {
+const getAllNotes = async (req, res) => {
 	const notes = await Note.find().lean().exec();
 	if (!notes?.length) {
 		return res.status(400).json({ message: 'No notes found' });
 	}
 	res.json(notes);
-});
+};
 
 // @desc Get one note
 // @route GET /notes/:id
 // @access Private
-const getOneNote = asyncHandler(async (req, res) => {
+const getOneNote = async (req, res) => {
 	const { id } = req.params;
 
 	if(!mongoose.Types.ObjectId.isValid(id)) return res.status(404).send('No note with that id');
@@ -30,17 +27,24 @@ const getOneNote = asyncHandler(async (req, res) => {
 	} else {
 		return res.json(note);
 	}
-});
+};
 
 // @desc Create new note
 // @route POST /notes
 // @access Private
-const createNewNote = asyncHandler(async (req, res) => {
+const createNewNote = async (req, res) => {
 	const { userid, username, title, text } = req.body;
 
 	// Confirm DATABASE_URI
 	if (!userid || !title || !text || !username) {
 		return res.status(400).json({ message: `All fields are required ${req.body}` });
+	}
+
+	// Check for duplicate title
+	const duplicate = await Note.findOne({ title }).collation({ locale: 'en', strength: 2 }).lean().exec();
+
+	if (duplicate) {
+		return res.status(400).json({ message: 'Duplicate note title'});
 	}
 
 	const noteObject = {
@@ -59,20 +63,40 @@ const createNewNote = asyncHandler(async (req, res) => {
 		res.status(400).json({ message: 'Invalid note data received' })
 	}
 
-});
+};
 
 // @desc Update a note
 // @route PATCH /note/:id
 // @access Private
-const updateNote = asyncHandler(async (req, res) => {
+const updateNote = async (req, res) => {
 
-	const { id: _id } = req.params;
+	const { id } = req.params;
 
-	const note = req.body;
+	const { user, title, text, completed, username} = req.body;
 
-	if(!mongoose.Types.ObjectId.isValid(_id)) return res.status(404).send('No note with that id');
+	if(!mongoose.Types.ObjectId.isValid(id)) return res.status(404).send('No note with that id');
 
-	const updatedNote = await Note.findByIdAndUpdate(_id, {...note, _id } , {new: true} );
+	const note = await Note.findById(id).exec();
+
+	if (!note) {
+		return res.status(400).json({ message: 'Note not found '});
+	}
+
+	// Check for duplicate title
+	const duplicate = await Note.findOne({ title }).collation({ locale: 'en', strength: 2 }).lean().exec();
+
+	// Allow renaming of the original note
+	if (duplicate && duplicate?._id.toString() !== id) {
+		return res.status(409).json({ message: 'Duplicate note title' });
+	}
+
+	note.user = user;
+	note.title = title;
+	note.text = text;
+	note.completed = completed;
+	note.username = username;
+
+	const updatedNote = await note.save();
 
 	if (updatedNote) {
 		res.json(updatedNote);
@@ -80,12 +104,12 @@ const updateNote = asyncHandler(async (req, res) => {
 		res.status(400).json({ message: 'Invalid note data received' })
 	}
 
-});
+};
 
 // @desc Delete a note
 // @route DELETE /notes
 // @access Private
-const deleteNote = asyncHandler(async (req, res) => {
+const deleteNote = async (req, res) => {
 	const { id } = req.params;
 
 	if(!mongoose.Types.ObjectId.isValid(id)) return res.status(404).send('No note with that id');
@@ -101,7 +125,7 @@ const deleteNote = asyncHandler(async (req, res) => {
 	const reply = `Note ${result.title} with ID ${result._id} deleted`;
 
 	res.json(reply);
-});
+};
 
 module.exports = {
 	getAllNotes,
